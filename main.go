@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"time"
 
 	"crwlflt/m/v2/config"
 	"crwlflt/m/v2/crwlrs"
@@ -57,28 +58,7 @@ func createSchema(db *pg.DB) error {
 	return nil
 }
 
-func main() {
-	log.Println("Start programm")
-
-	opt, err := pg.ParseURL(config.AppConfig.PgURL)
-	if err != nil {
-		panic(err)
-	}
-
-	db := pg.Connect(opt)
-	defer db.Close()
-
-	ctx := context.Background()
-
-	if err := db.Ping(ctx); err != nil {
-		panic(err)
-	}
-
-	err = createSchema(db)
-	if err != nil {
-		panic(err)
-	}
-
+func worker(db orm.DB) {
 	var changesPrices, changesStatuses []Change
 
 	freeFlats := crwlrs.GetFlts()
@@ -117,8 +97,6 @@ func main() {
 		}
 	}
 
-	log.Println(changesPrices)
-	log.Println(changesStatuses)
 	if len(changesPrices) > 0 || len(changesStatuses) > 0 {
 
 		formatMsg := func(msg string, changes []Change) string {
@@ -146,4 +124,37 @@ func main() {
 
 		bot.Send(msg)
 	}
+}
+
+func main() {
+	log.Println("Start programm")
+	log.Println(fmt.Sprintf("Run Every %d", config.AppConfig.RunTime))
+
+	opt, err := pg.ParseURL(config.AppConfig.PgURL)
+	if err != nil {
+		panic(err)
+	}
+
+	db := pg.Connect(opt)
+	defer db.Close()
+
+	ctx := context.Background()
+
+	if err := db.Ping(ctx); err != nil {
+		panic(err)
+	}
+
+	err = createSchema(db)
+	if err != nil {
+		panic(err)
+	}
+
+	worker(db)
+
+	for range time.Tick(time.Duration(config.AppConfig.RunTime) * time.Second) {
+		log.Println("run worker")
+		worker(db)
+	}
+
+	log.Println("End programm")
 }
