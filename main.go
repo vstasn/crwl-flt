@@ -149,6 +149,9 @@ func main() {
 		panic(err)
 	}
 
+	count, _ := db.Model((*Flat)(nil)).Count()
+	log.Println(fmt.Sprintf("Count flats in db: %d", count))
+
 	worker(db)
 
 	for range time.Tick(time.Duration(config.AppConfig.RunTime) * time.Second) {
