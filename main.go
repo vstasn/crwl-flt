@@ -149,14 +149,13 @@ func main() {
 		panic(err)
 	}
 
-	count, _ := db.Model((*Flat)(nil)).Count()
-	log.Println(fmt.Sprintf("Count flats in db: %d", count))
-
 	worker(db)
 
 	for range time.Tick(time.Duration(config.AppConfig.RunTime) * time.Second) {
 		log.Println("run worker")
 		worker(db)
+		count, _ := db.Model((*Flat)(nil)).Count()
+		log.Println(fmt.Sprintf("Count flats in db: %d", count))
 	}
 
 	log.Println("End programm")
