@@ -43,7 +43,6 @@ func worker(db orm.DB) {
 		if err == nil {
 			query.Where("id = ?", flt.Id).Update()
 			itemChanges := GetChanges(flt.Number, values, ConvertFieldsToUnderscore(GetFields(flt)))
-			log.Println(itemChanges)
 			changes = append(changes, itemChanges...)
 		}
 
