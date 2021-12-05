@@ -43,6 +43,7 @@ func worker(db orm.DB) {
 		if err == nil {
 			query.Where("id = ?", flt.Id).Update()
 			itemChanges := GetChanges(flt.Number, values, ConvertFieldsToUnderscore(GetFields(flt)))
+			log.Println(itemChanges)
 			changes = append(changes, itemChanges...)
 		}
 
@@ -52,17 +53,18 @@ func worker(db orm.DB) {
 	}
 
 	if len(changes) > 0 {
-		formatMsg := func(msg string, changes []Change) string {
+		formatMsg := func(changes []Change) string {
+			var msg string
 			for _, change := range changes {
 				msg = fmt.Sprintf("%s\n%s", msg, fmt.Sprintf("%d %s %s %s", change.Number, change.Field, change.OldValue, change.NewValue))
 			}
 			return msg
 		}
 
-		text := formatMsg("*Список изменений:*\n_Номер Field Old New_", changes)
+		text := fmt.Sprintf("<b>Список изменений:</b>\n<b>Номер Field Old New</b>%s", formatMsg(changes))
 
 		msg := tgbotapi.NewMessage(config.AppConfig.TelegramChatId, text)
-		msg.ParseMode = tgbotapi.ModeMarkdownV2
+		msg.ParseMode = tgbotapi.ModeHTML
 
 		bot, err := tgbotapi.NewBotAPI(config.AppConfig.TelegramApiToken)
 		if err != nil {
