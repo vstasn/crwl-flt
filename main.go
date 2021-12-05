@@ -150,12 +150,26 @@ func main() {
 	}
 
 	flat1 := &Flat{
-		Id:          1,
 		StatusAlias: "test",
 		Price:       "222222",
 	}
-	db.Model(flat1).WherePK().Update()
+	res, err := db.Model(flat1).Column("price", "status_alias").Where("number = ?", 251).Update()
+	if err == nil {
+		log.Println(res.RowsAffected())
+	} else {
+		log.Println(err)
+	}
 	worker(db)
+	count, _ := db.Model((*Flat)(nil)).Count()
+	log.Println(fmt.Sprintf("Count flats in db: %d", count))
+
+	var flats []Flat
+	err = db.Model(&flats).Order("id ASC").Limit(400).Select()
+	if err == nil {
+		for _, flt := range flats {
+			log.Println(flt)
+		}
+	}
 
 	for range time.Tick(time.Duration(config.AppConfig.RunTime) * time.Second) {
 		log.Println("run worker")
