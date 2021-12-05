@@ -150,8 +150,7 @@ func main() {
 	}
 
 	worker(db)
-	count, _ := db.Model((*Flat)(nil)).Where("number is NULL").Count()
-	log.Println(fmt.Sprintf("Count empty flats in db: %d", count))
+	db.Model((*Flat)(nil)).Where("number is NULL").Delete()
 
 	for range time.Tick(time.Duration(config.AppConfig.RunTime) * time.Second) {
 		log.Println("run worker")
