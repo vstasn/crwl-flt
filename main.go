@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log"
 	"time"
@@ -14,35 +13,6 @@ import (
 	"github.com/go-pg/pg/v10/orm"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
-
-type Flat struct {
-	Id           int64
-	Number       int64 `pg:",unique"`
-	Floor        int8
-	Rooms        int8
-	SquareTotal  float64
-	Section      int8
-	Type         string
-	PropertyType string
-	Price        string
-	PriceM2      string
-	Status       string
-	StatusAlias  string
-}
-
-func (b *Flat) ChangedStatus(newFlat *Flat) bool {
-	return b.StatusAlias != newFlat.StatusAlias
-}
-
-func (b *Flat) ChangedPrice(newFlat *Flat) bool {
-	return b.Price != newFlat.Price
-}
-
-type Change struct {
-	Number   int64
-	OldValue string
-	NewValue string
-}
 
 func createSchema(db *pg.DB) error {
 	models := []interface{}{
@@ -59,60 +29,37 @@ func createSchema(db *pg.DB) error {
 }
 
 func worker(db orm.DB) {
-	var changesPrices, changesStatuses []Change
+	var changes []Change
 
 	freeFlats := crwlrs.GetFlts()
 	for _, flat := range freeFlats {
 
-		dbFlat := new(Flat)
-		err := db.Model(dbFlat).Where("number = ?", flat.Number).Select()
+		flt := new(Flat)
+		err := db.Model(flt).Where("number = ?", flat.Number).Select()
 
-		inrec, _ := json.Marshal(flat)
-		var values map[string]interface{}
-		json.Unmarshal(inrec, &values)
+		values := GetFields(flat)
+		query := db.Model(&values).TableExpr("flats")
 
 		if err == nil {
-			query := db.Model(&values).TableExpr("flats").Where("id = ?", dbFlat.Id)
-			_, err = query.Update()
-			if err != nil {
-				continue
-			}
-			newFlat := new(Flat)
-			err = db.Model(newFlat).Where("id = ?", dbFlat.Id).Select()
-			if err != nil {
-				continue
-			}
-
-			if dbFlat.ChangedPrice(newFlat) {
-				changesPrices = append(changesPrices, Change{Number: dbFlat.Number, OldValue: dbFlat.Price, NewValue: newFlat.Price})
-			}
-
-			if dbFlat.ChangedStatus(newFlat) {
-				changesStatuses = append(changesStatuses, Change{Number: dbFlat.Number, OldValue: dbFlat.StatusAlias, NewValue: newFlat.StatusAlias})
-			}
+			query.Where("id = ?", flt.Id).Update()
+			itemChanges := GetChanges(flt.Number, values, ConvertFieldsToUnderscore(GetFields(flt)))
+			changes = append(changes, itemChanges...)
 		}
 
 		if err == pg.ErrNoRows {
-			db.Model(&values).TableExpr("flats").Insert()
+			query.Insert()
 		}
 	}
 
-	if len(changesPrices) > 0 || len(changesStatuses) > 0 {
-
+	if len(changes) > 0 {
 		formatMsg := func(msg string, changes []Change) string {
 			for _, change := range changes {
-				msg = fmt.Sprintf("%s\n%s", msg, fmt.Sprintf("%d %s %s", change.Number, change.OldValue, change.NewValue))
+				msg = fmt.Sprintf("%s\n%s", msg, fmt.Sprintf("%d %s %s %s", change.Number, change.Field, change.OldValue, change.NewValue))
 			}
 			return msg
 		}
-		var text string
-		if len(changesStatuses) > 0 {
-			text = formatMsg("*Изменения в статусах:*\n_Номер Old New_", changesStatuses)
-		}
-		if len(changesPrices) > 0 {
-			text1 := formatMsg("\n*Изменения в ценах:*\n_Номер Old New_", changesPrices)
-			text = fmt.Sprintf("%s%s", text, text1)
-		}
+
+		text := formatMsg("*Список изменений:*\n_Номер Field Old New_", changes)
 
 		msg := tgbotapi.NewMessage(config.AppConfig.TelegramChatId, text)
 		msg.ParseMode = tgbotapi.ModeMarkdownV2
@@ -149,8 +96,13 @@ func main() {
 		panic(err)
 	}
 
+	flat1 := &Flat{
+		Id:          1,
+		StatusAlias: "test",
+		Price:       "222222",
+	}
+	db.Model(flat1).WherePK().Update()
 	worker(db)
-	db.Model((*Flat)(nil)).Where("number is NULL").Delete()
 
 	for range time.Tick(time.Duration(config.AppConfig.RunTime) * time.Second) {
 		log.Println("run worker")
