@@ -97,11 +97,15 @@ func main() {
 	}
 
 	flat1 := &Flat{
-		Id:          1,
 		StatusAlias: "test",
 		Price:       "222222",
 	}
-	db.Model(flat1).WherePK().Update()
+	res, err := db.Model(flat1).Column("price", "status_alias").Where("number = ?", 251).Update()
+	if err == nil {
+		log.Println(res.RowsAffected())
+	} else {
+		log.Println(err)
+	}
 	worker(db)
 
 	for range time.Tick(time.Duration(config.AppConfig.RunTime) * time.Second) {
