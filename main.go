@@ -149,6 +149,12 @@ func main() {
 		panic(err)
 	}
 
+	flat1 := &Flat{
+		Id:          1,
+		StatusAlias: "test",
+		Price:       "222222",
+	}
+	db.Model(flat1).WherePK().Update()
 	worker(db)
 
 	for range time.Tick(time.Duration(config.AppConfig.RunTime) * time.Second) {
