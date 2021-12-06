@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"strconv"
 	"time"
 )
 
@@ -48,9 +49,22 @@ func GetFlts() []Flt {
 
 	json.Unmarshal(byteValue, &data)
 
+	checkExclude := len(config.AppConfig.ExcludeNumbers) > 0
+
 	var flats []Flt
 	for _, flt := range data.Data.Flts {
-		if flt.PropertyType == "flat" && flt.Section != "1" {
+		valid := true
+
+		number, err := strconv.Atoi(flt.Number)
+		if err == nil && checkExclude && ContainsNum(config.AppConfig.ExcludeNumbers, int64(number)) {
+			valid = false
+		}
+
+		if flt.PropertyType != "flat" || flt.Section == "1" {
+			valid = false
+		}
+
+		if valid {
 			flats = append(flats, flt)
 		}
 	}

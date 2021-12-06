@@ -28,7 +28,9 @@ func createSchema(db *pg.DB) error {
 	return nil
 }
 
-func worker(db orm.DB) {
+func worker(db orm.DB, bot *tgbotapi.BotAPI) {
+	log.Println("run worker")
+
 	var changes []Change
 
 	freeFlats := crwlrs.GetFlts()
@@ -65,12 +67,23 @@ func worker(db orm.DB) {
 		msg := tgbotapi.NewMessage(config.AppConfig.TelegramChatId, text)
 		msg.ParseMode = tgbotapi.ModeHTML
 
-		bot, err := tgbotapi.NewBotAPI(config.AppConfig.TelegramApiToken)
-		if err != nil {
-			panic(err)
-		}
-
 		bot.Send(msg)
+	}
+
+	count, _ := db.Model((*Flat)(nil)).Count()
+	log.Println(fmt.Sprintf("Count flats in db: %d", count))
+}
+
+func waitUpdates(db orm.DB, bot *tgbotapi.BotAPI) {
+	u := tgbotapi.NewUpdate(0)
+	u.Timeout = 60
+
+	updates := bot.GetUpdatesChan(u)
+
+	for update := range updates {
+		if update.Message != nil && update.Message.From.ID == config.AppConfig.TelegramChatId {
+			worker(db, bot)
+		}
 	}
 }
 
@@ -97,13 +110,14 @@ func main() {
 		panic(err)
 	}
 
-	worker(db)
+	bot, err := tgbotapi.NewBotAPI(config.AppConfig.TelegramApiToken)
+	if err != nil {
+		panic(err)
+	}
+	waitUpdates(db, bot)
 
 	for range time.Tick(time.Duration(config.AppConfig.RunTime) * time.Second) {
-		log.Println("run worker")
-		worker(db)
-		count, _ := db.Model((*Flat)(nil)).Count()
-		log.Println(fmt.Sprintf("Count flats in db: %d", count))
+		worker(db, bot)
 	}
 
 	log.Println("End programm")
