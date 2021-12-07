@@ -114,7 +114,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	waitUpdates(db, bot)
+	go waitUpdates(db, bot)
 
 	for range time.Tick(time.Duration(config.AppConfig.RunTime) * time.Second) {
 		worker(db, bot)
